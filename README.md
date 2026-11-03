@@ -7,13 +7,13 @@ My Mirror affiche l’écran d’un iPhone dans une fenêtre Windows. L’iPhone
 ## Démarrage
 
 1. Sur un PC Windows x64, installe une fois [UxPlay Windows](https://github.com/leapbtw/uxplay-windows/releases) avec son service Bonjour. Si UxPlay tourne déjà, quitte-le depuis sa zone de notification.
-2. Télécharge et ouvre `MyMirror.exe` depuis les [versions GitHub](https://github.com/7Myo/My-Mirror/releases/latest). Le récepteur démarre avec le nom **My-Mirror**. Pour le renommer, saisis le nouveau nom et choisis **Appliquer**. Le récepteur redémarre avec un nouveau code.
+2. Télécharge et ouvre `MyMirror.exe` depuis les [versions GitHub](https://github.com/7Myo/My-Mirror/releases/latest). Le récepteur **My-Mirror** démarre automatiquement.
 3. Connecte l’iPhone au même réseau que le PC. Ouvre **Centre de contrôle → Recopie de l’écran**, sélectionne **My-Mirror**, puis saisis le code affiché si l’iPhone le demande.
-4. La vidéo remplace l’accueil dans une fenêtre qui reprend les proportions initiales du rendu. Ferme cette fenêtre pour revenir à l’accueil. Pour quitter l’application, tu peux aussi utiliser l’icône **My Mirror** dans la zone de notification.
+4. La vidéo remplace l’accueil dans une fenêtre qui reprend les proportions initiales du rendu. Ferme cette fenêtre pour arrêter la recopie et quitter My Mirror.
 
 Windows peut demander d’autoriser le moteur UxPlay à recevoir les connexions locales lors de sa première utilisation. My Mirror fonctionne sans droits administrateur une fois UxPlay et Bonjour installés.
 
-Au clavier, utilise **Tab** pour parcourir les commandes, **Alt+N** pour le nom et **Alt+C** pour le code. Le code peut être sélectionné et copié. My Mirror reprend les couleurs Windows quand un thème de contraste est actif au démarrage.
+Au clavier, utilise **Alt+C** pour accéder au code et le copier. My Mirror reprend les couleurs Windows quand un thème de contraste est actif au démarrage.
 
 ## Linux (aperçu)
 
@@ -27,6 +27,6 @@ Exécute `powershell.exe -NoProfile -File .\build.ps1` depuis le dossier du proj
 
 Le lanceur WinForms démarre le processus UxPlay avec le nom du récepteur et un code temporaire. Bonjour annonce le service sur le réseau local. UxPlay décode le flux AirPlay et My Mirror intègre la surface Direct3D dans sa propre fenêtre.
 
-My Mirror sauvegarde les paramètres UxPlay avant de les modifier. Il les restaure à l’arrêt normal ou au prochain démarrage après une fermeture forcée. Si UxPlay tourne encore après cette fermeture, quitte-le depuis la zone de notification, puis clique sur **Démarrer** dans My Mirror. Si le fichier a été modifié depuis, My Mirror garde les nouveaux réglages.
+My Mirror sauvegarde les paramètres UxPlay avant de les modifier. Il les restaure à l’arrêt normal ou au prochain démarrage après une fermeture forcée. Si UxPlay tourne encore après cette fermeture, quitte-le depuis la zone de notification, puis clique sur **Réessayer** dans My Mirror. Si le fichier a été modifié depuis, My Mirror garde les nouveaux réglages.
 
 La [licence MIT](LICENSE) couvre le lanceur et son logo. [UxPlay](https://github.com/FDH2/UxPlay) et [UxPlay Windows](https://github.com/leapbtw/uxplay-windows) sont installés séparément et conservent leurs licences.

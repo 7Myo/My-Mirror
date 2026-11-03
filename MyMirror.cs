@@ -6,7 +6,6 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.ServiceProcess;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -18,21 +17,18 @@ internal sealed class Mirror : Form
     static readonly string MachineArgs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), @"uxplay-windows\arguments.txt");
     static readonly Encoding Utf8 = new UTF8Encoding(false);
     const int Port = 7010;
-    readonly TextBox receiver = new TextBox { Text = "My-Mirror", MaxLength = 28, Dock = DockStyle.Fill };
+    const string ReceiverName = "My-Mirror";
     readonly TextBox pin = new TextBox { ReadOnly = true, AccessibleName = "Code AirPlay", Text = "—", Font = new Font("Segoe UI", 32, FontStyle.Bold), TextAlign = HorizontalAlignment.Center, Dock = DockStyle.Fill };
     readonly Label status = new Label { AutoSize = true, MaximumSize = new Size(420, 0), Text = "Récepteur arrêté." };
-    readonly Button action = new Button { Text = "Démarrer", AutoSize = true };
-    readonly Button rename = new Button { Text = "A&ppliquer", AutoSize = true, Enabled = false };
+    readonly Button retry = new Button { Text = "&Réessayer", AutoSize = true, Visible = false };
     readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer { Interval = 500 };
     NotifyIcon tray;
     ContextMenuStrip trayMenu;
     Form stream;
     IntPtr renderer;
     bool closingStream;
-    bool resumeAfterStream;
     bool exiting;
     Process child;
-    string activeName;
     DateTime started;
 
     [STAThread]
@@ -60,11 +56,6 @@ internal sealed class Mirror : Form
             ForeColor = Color.FromArgb(26, 28, 31);
             pin.BackColor = Color.FromArgb(231, 240, 254);
             pin.ForeColor = ForeColor;
-            rename.FlatStyle = FlatStyle.Flat;
-            rename.FlatAppearance.BorderSize = 0;
-            rename.ForeColor = Color.White;
-            rename.EnabledChanged += delegate { rename.BackColor = rename.Enabled ? Color.FromArgb(0, 86, 197) : Color.FromArgb(236, 239, 244); };
-            rename.BackColor = Color.FromArgb(236, 239, 244);
             status.TextChanged += delegate
             {
                 status.ForeColor = status.Text.StartsWith("Prêt à se connecter", StringComparison.Ordinal)
@@ -76,9 +67,9 @@ internal sealed class Mirror : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(420, 428);
+        ClientSize = new Size(420, 375);
         AutoScroll = true;
-        var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(24), ColumnCount = 1, RowCount = 8 };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(24), ColumnCount = 1, RowCount = 7 };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var header = new TableLayoutPanel { AutoSize = true, Dock = DockStyle.Top, ColumnCount = 2, RowCount = 2 };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -91,45 +82,26 @@ internal sealed class Mirror : Form
         status.ForeColor = secondary;
         header.Controls.Add(status, 1, 1);
         layout.Controls.Add(header);
-        layout.Controls.Add(new Label { Text = "&Nom du récepteur", AutoSize = true, TabIndex = 1 });
-        receiver.AccessibleName = "Nom du récepteur AirPlay";
-        receiver.Font = new Font("Segoe UI", 12);
-        receiver.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        receiver.Margin = new Padding(0, 0, 8, 0);
-        receiver.TabIndex = 0;
-        rename.TabIndex = 1;
-        rename.Padding = new Padding(8, 2, 8, 2);
-        rename.Margin = Padding.Empty;
-        var nameRow = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, RowCount = 1, TabIndex = 2 };
-        nameRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        nameRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        nameRow.Controls.Add(receiver, 0, 0);
-        nameRow.Controls.Add(rename, 1, 0);
-        layout.Controls.Add(nameRow);
+        layout.Controls.Add(new Label { Text = ReceiverName, AutoSize = true, Font = new Font("Segoe UI", 14, FontStyle.Bold) });
         layout.Controls.Add(new Label { Text = "&Code AirPlay", AutoSize = true, TabIndex = 3 });
         pin.TabIndex = 4;
         layout.Controls.Add(pin);
-        layout.Controls.Add(new Label { Text = "Sur l’iPhone, ouvre Recopie de l’écran puis choisis ton récepteur.", MaximumSize = new Size(350, 0), AutoSize = true, ForeColor = secondary });
-        action.TabIndex = 5;
-        layout.Controls.Add(action);
+        layout.Controls.Add(new Label { Text = "Sur l’iPhone, ouvre Recopie de l’écran puis choisis " + ReceiverName + ".", MaximumSize = new Size(350, 0), AutoSize = true, ForeColor = secondary });
+        retry.TabIndex = 5;
+        layout.Controls.Add(retry);
         layout.Controls.Add(new Label { Text = "Created by 7myo", AutoSize = true, ForeColor = secondary });
         for (int i = 0; i < layout.RowCount; i++) layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         foreach (Control c in layout.Controls) c.Margin = new Padding(0, 4, 0, 5);
         header.Margin = new Padding(0, 0, 0, 14);
         Controls.Add(layout);
-        AcceptButton = action;
-        action.Click += delegate { if (child == null) TryStart(); else TryStop(); };
-        receiver.TextChanged += delegate { UpdateRename(); };
-        rename.Click += delegate
-        {
-            if (!ValidateName()) return;
-            if (TryStop()) TryStart();
-        };
+        AcceptButton = retry;
+        retry.Click += delegate { TryStart(); };
         timer.Tick += delegate { Poll(); };
         FormClosing += delegate(object sender, FormClosingEventArgs e)
         {
             exiting = true;
-            if (child != null && !TryStop()) { exiting = false; e.Cancel = true; }
+            if (child == null) CloseStream();
+            else if (!TryStop()) { exiting = false; e.Cancel = true; }
         };
         FormClosed += delegate
         {
@@ -140,25 +112,25 @@ internal sealed class Mirror : Form
         trayMenu.Items.Add("Quitter My Mirror", null, delegate { Close(); });
         tray = new NotifyIcon { Icon = Icon, Text = "My Mirror", ContextMenuStrip = trayMenu, Visible = true };
         if (autoStart) Shown += delegate { TryStart(); };
+        else retry.Visible = true;
     }
 
     void TryStart()
     {
-        if (!ValidateName()) return;
+        if (child != null) return;
         bool prepared = false;
         try
         {
-            string name = receiver.Text.Trim();
             if (!File.Exists(Engine)) throw new FileNotFoundException("Installe UxPlay Windows x64 pour tous les utilisateurs, puis réessaie.");
             if (File.Exists(MachineArgs)) throw new InvalidOperationException("Une configuration UxPlay est imposée dans ProgramData. Elle doit être gérée par l’administrateur.");
             foreach (var p in Process.GetProcessesByName("uxplay-windows"))
-                using (p) { if (!p.HasExited) throw new InvalidOperationException("Quitte UxPlay Windows depuis son icône près de l’horloge, puis réessaie."); }
+                using (p) { if (!p.HasExited) throw new InvalidOperationException("UxPlay tourne déjà. Fais un clic droit sur son icône près de l’horloge, choisis Quitter, puis clique sur Réessayer."); }
             Restore();
             using (var svc = new ServiceController("Bonjour Service"))
                 if (svc.Status != ServiceControllerStatus.Running) throw new InvalidOperationException("Le service Bonjour doit être démarré.");
             string code = MakeCode();
             Directory.CreateDirectory(Path.GetDirectoryName(ArgsFile));
-            string config = "-n " + name + " -nh -pin " + code + " -p " + Port + " -vs d3d11videosink -fps 60 -nofreeze";
+            string config = "-n " + ReceiverName + " -nh -pin " + code + " -p " + Port + " -vs d3d11videosink -fps 60 -nofreeze";
             SaveRecovery(config);
             prepared = true;
             WriteFile(ArgsFile, Utf8.GetBytes(config));
@@ -166,9 +138,7 @@ internal sealed class Mirror : Form
             started = DateTime.UtcNow;
             status.Text = "Démarrage du récepteur…";
             pin.Text = code;
-            activeName = name;
-            action.Text = "&Arrêter";
-            UpdateRename();
+            retry.Visible = false;
             timer.Start();
         }
         catch (Exception e)
@@ -177,21 +147,8 @@ internal sealed class Mirror : Form
             if (prepared && child == null)
                 try { Restore(); } catch (Exception restoreError) { error += " " + restoreError.Message; }
             status.Text = error;
+            retry.Visible = child == null;
         }
-    }
-
-    bool ValidateName()
-    {
-        if (Regex.IsMatch(receiver.Text.Trim(), @"^[A-Za-z0-9][A-Za-z0-9_-]{0,27}$")) return true;
-        status.Text = "Utilise 1 à 28 lettres sans accent, chiffres, tirets ou soulignés.";
-        receiver.Focus();
-        return false;
-    }
-
-    void UpdateRename()
-    {
-        rename.Enabled = child != null && receiver.Text.Trim() != activeName;
-        AcceptButton = child == null ? action : (rename.Enabled ? rename : null);
     }
 
     static void WriteFile(string path, byte[] bytes)
@@ -272,9 +229,7 @@ internal sealed class Mirror : Form
         timer.Stop();
         if (child != null) child.Dispose();
         child = null;
-        activeName = null;
-        action.Text = "Démarrer";
-        UpdateRename();
+        retry.Visible = !exiting;
         pin.Text = "—";
         status.Text = message;
     }
@@ -287,12 +242,12 @@ internal sealed class Mirror : Form
             if (child.HasExited)
             {
                 Finish("Le moteur AirPlay s’est arrêté. Vérifie Bonjour et ferme tout autre récepteur.");
-                CloseStream();
+                if (stream != null) Close();
                 return;
             }
             if (stream != null && (!IsWindow(renderer) || !IsWindowVisible(renderer)))
             {
-                CloseStream();
+                Close();
                 return;
             }
             if (stream == null)
@@ -301,7 +256,7 @@ internal sealed class Mirror : Form
                 if (window != IntPtr.Zero) OpenStream(window);
             }
             if (Listening(child.Id))
-                status.Text = "Prêt à se connecter · " + activeName;
+                status.Text = "Prêt à se connecter";
             else if ((DateTime.UtcNow - started).TotalSeconds > 10)
                 status.Text = "UxPlay tourne, mais aucun port AirPlay n’est à l’écoute. Vérifie l’icône UxPlay près de l’horloge.";
         }
@@ -354,20 +309,14 @@ internal sealed class Mirror : Form
         {
             if (!closingStream)
             {
-                string name = activeName;
                 e.Cancel = !TryStop(true);
-                resumeAfterStream = !e.Cancel;
-                if (resumeAfterStream && name != null) receiver.Text = name;
             }
         };
         form.FormClosed += delegate
         {
             stream = null;
             renderer = IntPtr.Zero;
-            if (exiting) return;
-            Show();
-            Activate();
-            if (resumeAfterStream) { resumeAfterStream = false; TryStart(); }
+            if (!exiting) Close();
         };
         form.Show();
         SizeStream();
