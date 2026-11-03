@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.ServiceProcess;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32.SafeHandles;
 
@@ -32,6 +33,8 @@ internal sealed class Mirror : Form
     IntPtr renderer;
     bool closingStream;
     bool exiting;
+    bool setupRequired;
+    bool preparing;
     Process child;
     EngineJob job;
     readonly Stopwatch startup = new Stopwatch();
@@ -104,7 +107,11 @@ internal sealed class Mirror : Form
         header.Margin = new Padding(0, 0, 0, 14);
         Controls.Add(layout);
         AcceptButton = retry;
-        retry.Click += delegate { TryStart(); };
+        retry.Click += async delegate
+        {
+            if (setupRequired) await PrepareReceiver();
+            else TryStart();
+        };
         airPlayAudio.Click += delegate
         {
             if (child == null) return;
@@ -114,6 +121,7 @@ internal sealed class Mirror : Form
         timer.Tick += delegate { Poll(); };
         FormClosing += delegate(object sender, FormClosingEventArgs e)
         {
+            if (preparing) { e.Cancel = true; return; }
             exiting = true;
             if (child == null) CloseStream();
             else if (!TryStop()) { exiting = false; e.Cancel = true; }
@@ -133,11 +141,20 @@ internal sealed class Mirror : Form
 
     void TryStart()
     {
-        if (child != null) return;
+        if (child != null || preparing) return;
+        setupRequired = false;
+        retry.Text = "&Réessayer";
         bool prepared = false;
         try
         {
-            if (!File.Exists(Engine)) throw new FileNotFoundException("Installe UxPlay Windows x64 pour tous les utilisateurs, puis réessaie.");
+            if (ReceiverSetup.NeedsSetup(Engine))
+            {
+                setupRequired = true;
+                status.Text = "Une préparation est nécessaire au premier lancement.";
+                retry.Text = "&Préparer AirPlay";
+                retry.Visible = true;
+                return;
+            }
             if (File.Exists(MachineArgs)) throw new InvalidOperationException("Une configuration UxPlay est imposée dans ProgramData. Elle doit être gérée par l’administrateur.");
             var engines = Process.GetProcessesByName("uxplay-windows");
             try
@@ -182,6 +199,30 @@ internal sealed class Mirror : Form
             status.Text = error;
             retry.Visible = child == null;
         }
+    }
+
+    async Task PrepareReceiver()
+    {
+        if (preparing) return;
+        preparing = true;
+        retry.Enabled = false;
+        status.Text = "Préparation d’AirPlay…";
+        try
+        {
+            var progress = new Progress<string>(message => status.Text = message);
+            await Task.Run(() => ReceiverSetup.Prepare(Engine, progress));
+        }
+        catch (Exception e)
+        {
+            status.Text = e.Message;
+            return;
+        }
+        finally
+        {
+            preparing = false;
+            retry.Enabled = true;
+        }
+        TryStart();
     }
 
     static string EngineArguments(string code, bool withAudio)
