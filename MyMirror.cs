@@ -26,6 +26,7 @@ internal sealed class Mirror : Form
     readonly Label status = new Label { AutoSize = true, MaximumSize = new Size(420, 0), Text = "Récepteur arrêté." };
     readonly CheckBox airPlayAudio = new CheckBox { Text = "&Son AirPlay", AutoSize = true, Checked = true };
     readonly Button retry = new Button { Text = "&Réessayer", AutoSize = true, Visible = false };
+    readonly Button updateButton = new Button { Text = "Mettre à &jour", AutoSize = true, Visible = false };
     readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer { Interval = 500 };
     NotifyIcon tray;
     ContextMenuStrip trayMenu;
@@ -79,7 +80,7 @@ internal sealed class Mirror : Form
         AutoScaleMode = AutoScaleMode.Dpi;
         ClientSize = new Size(420, 410);
         AutoScroll = true;
-        var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(24), ColumnCount = 1, RowCount = 8 };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(24), ColumnCount = 1, RowCount = 9 };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var header = new TableLayoutPanel { AutoSize = true, Dock = DockStyle.Top, ColumnCount = 2, RowCount = 2 };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -101,6 +102,7 @@ internal sealed class Mirror : Form
         layout.Controls.Add(new Label { Text = "Sur l’iPhone, ouvre Recopie de l’écran puis choisis " + ReceiverName + ".", MaximumSize = new Size(350, 0), AutoSize = true, ForeColor = secondary });
         retry.TabIndex = 6;
         layout.Controls.Add(retry);
+        layout.Controls.Add(updateButton);
         layout.Controls.Add(new Label { Text = "Created by 7myo", AutoSize = true, ForeColor = secondary });
         for (int i = 0; i < layout.RowCount; i++) layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         foreach (Control c in layout.Controls) c.Margin = new Padding(0, 4, 0, 5);
@@ -135,8 +137,52 @@ internal sealed class Mirror : Form
         trayMenu = new ContextMenuStrip();
         trayMenu.Items.Add("Quitter My Mirror", null, delegate { Close(); });
         tray = new NotifyIcon { Icon = Icon, Text = "My Mirror", ContextMenuStrip = trayMenu, Visible = true };
-        if (autoStart) Shown += delegate { TryStart(); };
+        if (autoStart) Shown += async delegate { TryStart(); await CheckUpdate(); };
         else retry.Visible = true;
+    }
+
+    async Task CheckUpdate()
+    {
+        AppUpdate update;
+        try { update = await AppUpdate.Check(); }
+        catch (Exception) { return; }
+        if (IsDisposed || update == null) return;
+        updateButton.Text = "Mettre à &jour (" + update.Tag + ")";
+        updateButton.Visible = true;
+        updateButton.Click += async delegate { await InstallUpdate(update); };
+    }
+
+    async Task InstallUpdate(AppUpdate update)
+    {
+        if (preparing || stream != null) return;
+        preparing = true;
+        updateButton.Enabled = false;
+        string download = null;
+        try
+        {
+            string target = typeof(Mirror).Assembly.Location;
+            download = await update.Download(target);
+            if (stream != null || !TryStop()) return;
+            AppUpdate.Schedule(target, download);
+            download = null;
+            preparing = false;
+            Close();
+        }
+        catch (Exception e)
+        {
+            MessageBox.Show(this, e.Message, "Mise à jour My Mirror");
+        }
+        finally
+        {
+            if (download != null)
+            {
+                try { File.Delete(download); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+            preparing = false;
+            if (!IsDisposed) updateButton.Enabled = true;
+        }
     }
 
     void TryStart()

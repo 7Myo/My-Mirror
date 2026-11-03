@@ -14,6 +14,8 @@ My Mirror affiche l’écran d’un iPhone dans une fenêtre Windows. L’iPhone
 
 Windows peut demander d’autoriser le moteur UxPlay à recevoir les connexions locales lors de sa première utilisation. My Mirror fonctionne sans droits administrateur une fois UxPlay et Bonjour installés.
 
+Au lancement, My Mirror vérifie les versions sur GitHub. Si une version stable plus récente est disponible, **Mettre à jour** apparaît dans l’accueil. Un clic télécharge le nouvel exécutable, vérifie son empreinte GitHub, remplace le fichier et relance My Mirror. Garde l’exécutable dans un dossier où ton compte peut écrire.
+
 Au clavier, utilise **Alt+C** pour accéder au code et le copier. My Mirror reprend les couleurs Windows quand un thème de contraste est actif au démarrage.
 
 ## Linux (aperçu)
