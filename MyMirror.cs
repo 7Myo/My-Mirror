@@ -19,10 +19,10 @@ internal sealed class Mirror : Form
     static readonly Encoding Utf8 = new UTF8Encoding(false);
     const int Port = 7010;
     readonly TextBox receiver = new TextBox { Text = "My-Mirror", MaxLength = 28, Dock = DockStyle.Fill };
-    readonly TextBox pin = new TextBox { ReadOnly = true, AccessibleName = "Code AirPlay", Text = "—", Font = new Font("Segoe UI", 17, FontStyle.Bold) };
+    readonly TextBox pin = new TextBox { ReadOnly = true, AccessibleName = "Code AirPlay", Text = "—", Font = new Font("Segoe UI", 32, FontStyle.Bold), TextAlign = HorizontalAlignment.Center, Dock = DockStyle.Fill };
     readonly Label status = new Label { AutoSize = true, MaximumSize = new Size(420, 0), Text = "Récepteur arrêté." };
     readonly Button action = new Button { Text = "Démarrer", AutoSize = true };
-    readonly Button rename = new Button { Text = "&Appliquer le nom", AutoSize = true, Enabled = false };
+    readonly Button rename = new Button { Text = "A&ppliquer", AutoSize = true, Enabled = false };
     readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer { Interval = 500 };
     NotifyIcon tray;
     ContextMenuStrip trayMenu;
@@ -50,50 +50,72 @@ internal sealed class Mirror : Form
 
     Mirror(bool autoStart)
     {
-        Text = "My Mirror · AirPlay";
-        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-        if (!SystemInformation.HighContrast)
+        Text = "My Mirror";
+        Icon = Icon.ExtractAssociatedIcon(typeof(Mirror).Assembly.Location);
+        bool highContrast = SystemInformation.HighContrast;
+        Color secondary = highContrast ? SystemColors.WindowText : Color.FromArgb(82, 88, 96);
+        if (!highContrast)
         {
-            BackColor = Color.FromArgb(16, 16, 16);
-            ForeColor = Color.WhiteSmoke;
-            receiver.BackColor = Color.FromArgb(33, 33, 33);
-            receiver.ForeColor = Color.WhiteSmoke;
-            pin.BackColor = receiver.BackColor;
-            pin.ForeColor = receiver.ForeColor;
-            foreach (Button button in new[] { action, rename })
+            BackColor = Color.White;
+            ForeColor = Color.FromArgb(26, 28, 31);
+            pin.BackColor = Color.FromArgb(231, 240, 254);
+            pin.ForeColor = ForeColor;
+            rename.FlatStyle = FlatStyle.Flat;
+            rename.FlatAppearance.BorderSize = 0;
+            rename.ForeColor = Color.White;
+            rename.EnabledChanged += delegate { rename.BackColor = rename.Enabled ? Color.FromArgb(0, 86, 197) : Color.FromArgb(236, 239, 244); };
+            rename.BackColor = Color.FromArgb(236, 239, 244);
+            status.TextChanged += delegate
             {
-                button.FlatStyle = FlatStyle.Flat;
-                button.BackColor = Color.FromArgb(36, 36, 36);
-            }
+                status.ForeColor = status.Text.StartsWith("Prêt à se connecter", StringComparison.Ordinal)
+                    ? Color.FromArgb(24, 112, 52) : secondary;
+            };
         }
         Font = new Font("Segoe UI", 10);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(460, 395);
+        ClientSize = new Size(420, 428);
         AutoScroll = true;
-        var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(20), ColumnCount = 1, RowCount = 10 };
-        var header = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
-        header.Controls.Add(new PictureBox { Image = Icon.ToBitmap(), Size = new Size(42, 42), SizeMode = PictureBoxSizeMode.Zoom });
-        header.Controls.Add(new Label { Text = "My Mirror", AutoSize = true, Font = new Font("Segoe UI", 23, FontStyle.Bold) });
+        var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(24), ColumnCount = 1, RowCount = 8 };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        var header = new TableLayoutPanel { AutoSize = true, Dock = DockStyle.Top, ColumnCount = 2, RowCount = 2 };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        var mark = new PictureBox { Image = Icon.ToBitmap(), Size = new Size(54, 54), SizeMode = PictureBoxSizeMode.Zoom, Anchor = AnchorStyles.Left, Margin = new Padding(0, 0, 14, 0) };
+        header.Controls.Add(mark, 0, 0);
+        header.SetRowSpan(mark, 2);
+        header.Controls.Add(new Label { Text = "My Mirror", AutoSize = true, Font = new Font("Segoe UI", 23, FontStyle.Bold) }, 1, 0);
+        status.MaximumSize = new Size(270, 0);
+        status.ForeColor = secondary;
+        header.Controls.Add(status, 1, 1);
         layout.Controls.Add(header);
-        layout.Controls.Add(new Label { Text = "&Nom affiché sur l’iPhone", AutoSize = true, TabIndex = 1 });
+        layout.Controls.Add(new Label { Text = "&Nom du récepteur", AutoSize = true, TabIndex = 1 });
         receiver.AccessibleName = "Nom du récepteur AirPlay";
-        receiver.TabIndex = 2;
-        rename.TabIndex = 3;
-        action.TabIndex = 4;
-        pin.TabIndex = 6;
-        layout.Controls.Add(receiver);
-        layout.Controls.Add(rename);
-        layout.Controls.Add(action);
-        layout.Controls.Add(new Label { Text = "&Code AirPlay", AutoSize = true, TabIndex = 5 });
+        receiver.Font = new Font("Segoe UI", 12);
+        receiver.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        receiver.Margin = new Padding(0, 0, 8, 0);
+        receiver.TabIndex = 0;
+        rename.TabIndex = 1;
+        rename.Padding = new Padding(8, 2, 8, 2);
+        rename.Margin = Padding.Empty;
+        var nameRow = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, RowCount = 1, TabIndex = 2 };
+        nameRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        nameRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        nameRow.Controls.Add(receiver, 0, 0);
+        nameRow.Controls.Add(rename, 1, 0);
+        layout.Controls.Add(nameRow);
+        layout.Controls.Add(new Label { Text = "&Code AirPlay", AutoSize = true, TabIndex = 3 });
+        pin.TabIndex = 4;
         layout.Controls.Add(pin);
-        layout.Controls.Add(new Label { Text = "Sur l’iPhone : Centre de contrôle → Recopie de l’écran. Choisis le nom ci-dessus puis saisis le code. L’image s’ouvre dans une autre fenêtre.", MaximumSize = new Size(420, 0), AutoSize = true });
-        layout.Controls.Add(status);
-        layout.Controls.Add(new Label { Text = "Created by 7myo", AutoSize = true });
+        layout.Controls.Add(new Label { Text = "Sur l’iPhone, ouvre Recopie de l’écran puis choisis ton récepteur.", MaximumSize = new Size(350, 0), AutoSize = true, ForeColor = secondary });
+        action.TabIndex = 5;
+        layout.Controls.Add(action);
+        layout.Controls.Add(new Label { Text = "Created by 7myo", AutoSize = true, ForeColor = secondary });
         for (int i = 0; i < layout.RowCount; i++) layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         foreach (Control c in layout.Controls) c.Margin = new Padding(0, 4, 0, 5);
+        header.Margin = new Padding(0, 0, 0, 14);
         Controls.Add(layout);
         AcceptButton = action;
         action.Click += delegate { if (child == null) TryStart(); else TryStop(); };
@@ -279,7 +301,7 @@ internal sealed class Mirror : Form
                 if (window != IntPtr.Zero) OpenStream(window);
             }
             if (Listening(child.Id))
-                status.Text = "Récepteur à l’écoute : " + activeName + ".";
+                status.Text = "Prêt à se connecter · " + activeName;
             else if ((DateTime.UtcNow - started).TotalSeconds > 10)
                 status.Text = "UxPlay tourne, mais aucun port AirPlay n’est à l’écoute. Vérifie l’icône UxPlay près de l’horloge.";
         }
@@ -311,7 +333,7 @@ internal sealed class Mirror : Form
         form.ClientSize = FitVideo(source, new Size(Math.Max(1, workArea.Width - 32), Math.Max(1, workArea.Height - 80)));
         form.StartPosition = FormStartPosition.Manual;
         form.Location = new Point(workArea.Left + (workArea.Width - form.Width) / 2, workArea.Top + (workArea.Height - form.Height) / 2);
-        DarkCaption(form);
+        UseLightCaption(form);
         IntPtr host = form.Handle;
         int style = GetWindowLong(window, -16);
         ShowWindow(window, 0);
@@ -407,12 +429,12 @@ internal sealed class Mirror : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        DarkCaption(this);
+        UseLightCaption(this);
     }
 
-    static void DarkCaption(Form form)
+    static void UseLightCaption(Form form)
     {
-        int enabled = 1;
+        int enabled = 0;
         if (!SystemInformation.HighContrast)
             DwmSetWindowAttribute(form.Handle, 20, ref enabled, sizeof(int));
     }
