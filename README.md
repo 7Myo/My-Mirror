@@ -7,11 +7,13 @@ My Mirror affiche l’écran d’un iPhone dans une fenêtre Windows. L’iPhone
 ## Démarrage
 
 1. Sur un PC Windows x64, installe une fois [UxPlay Windows](https://github.com/leapbtw/uxplay-windows/releases) avec son service Bonjour. Si UxPlay tourne déjà, quitte-le depuis sa zone de notification.
-2. Télécharge `MyMirror-Windows-x64.zip` depuis les [versions GitHub](https://github.com/7Myo/My-Mirror/releases/latest), décompresse-le et lance `MyMirror.exe`. Le récepteur démarre avec le nom **My-Mirror**. Pour changer le nom, clique sur **Arrêter**, saisis le nouveau nom, puis clique sur **Démarrer**.
+2. Télécharge `MyMirror-Windows-x64.zip` depuis les [versions GitHub](https://github.com/7Myo/My-Mirror/releases/latest), décompresse-le et lance `MyMirror.exe`. Le récepteur démarre avec le nom **My-Mirror**. Pour le renommer, saisis le nouveau nom et choisis **Appliquer le nom**. Le récepteur redémarre avec un nouveau code.
 3. Connecte l’iPhone au même réseau que le PC. Ouvre **Centre de contrôle → Recopie de l’écran**, sélectionne **My-Mirror**, puis saisis le code affiché si l’iPhone le demande.
 4. La vidéo remplace l’accueil. Ferme la fenêtre vidéo pour revenir à l’accueil et recevoir une autre connexion.
 
 Windows peut demander d’autoriser le moteur UxPlay à recevoir les connexions locales lors de sa première utilisation. My Mirror fonctionne sans droits administrateur une fois UxPlay et Bonjour installés.
+
+Au clavier, utilise **Tab** pour parcourir les commandes, **Alt+N** pour le nom et **Alt+C** pour le code. Le code peut être sélectionné et copié. My Mirror reprend les couleurs Windows quand un thème de contraste est actif au démarrage.
 
 ## Compilation
 
