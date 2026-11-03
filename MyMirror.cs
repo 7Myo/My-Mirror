@@ -14,6 +14,7 @@ internal sealed class Mirror : Form
 {
     static readonly string Engine = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"uxplay-windows\uxplay-windows.exe");
     static readonly string ArgsFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"leapbtw\uxplay-windows\arguments.txt");
+    static readonly string RecoveryFile = ArgsFile + ".mymirror-recovery";
     static readonly string MachineArgs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), @"uxplay-windows\arguments.txt");
     static readonly Encoding Utf8 = new UTF8Encoding(false);
     const int Port = 7010;
@@ -23,13 +24,14 @@ internal sealed class Mirror : Form
     readonly Button action = new Button { Text = "Démarrer", AutoSize = true };
     readonly Button rename = new Button { Text = "&Appliquer le nom", AutoSize = true, Enabled = false };
     readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer { Interval = 500 };
+    NotifyIcon tray;
+    ContextMenuStrip trayMenu;
     Form stream;
     IntPtr renderer;
     bool closingStream;
     bool resumeAfterStream;
+    bool exiting;
     Process child;
-    byte[] previous;
-    string applied;
     string activeName;
     DateTime started;
 
@@ -69,10 +71,13 @@ internal sealed class Mirror : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(460, 330);
+        ClientSize = new Size(460, 395);
         AutoScroll = true;
-        var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(20), ColumnCount = 1, RowCount = 9 };
-        layout.Controls.Add(new Label { Text = "My Mirror", AutoSize = true, Font = new Font("Segoe UI", 23, FontStyle.Bold) });
+        var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(20), ColumnCount = 1, RowCount = 10 };
+        var header = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        header.Controls.Add(new PictureBox { Image = Icon.ToBitmap(), Size = new Size(42, 42), SizeMode = PictureBoxSizeMode.Zoom });
+        header.Controls.Add(new Label { Text = "My Mirror", AutoSize = true, Font = new Font("Segoe UI", 23, FontStyle.Bold) });
+        layout.Controls.Add(header);
         layout.Controls.Add(new Label { Text = "&Nom affiché sur l’iPhone", AutoSize = true, TabIndex = 1 });
         receiver.AccessibleName = "Nom du récepteur AirPlay";
         receiver.TabIndex = 2;
@@ -86,6 +91,7 @@ internal sealed class Mirror : Form
         layout.Controls.Add(pin);
         layout.Controls.Add(new Label { Text = "Sur l’iPhone : Centre de contrôle → Recopie de l’écran. Choisis le nom ci-dessus puis saisis le code. L’image s’ouvre dans une autre fenêtre.", MaximumSize = new Size(420, 0), AutoSize = true });
         layout.Controls.Add(status);
+        layout.Controls.Add(new Label { Text = "Created by 7myo", AutoSize = true });
         for (int i = 0; i < layout.RowCount; i++) layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         foreach (Control c in layout.Controls) c.Margin = new Padding(0, 4, 0, 5);
         Controls.Add(layout);
@@ -98,13 +104,26 @@ internal sealed class Mirror : Form
             if (TryStop()) TryStart();
         };
         timer.Tick += delegate { Poll(); };
-        FormClosing += delegate(object sender, FormClosingEventArgs e) { if (child != null && !TryStop()) e.Cancel = true; };
+        FormClosing += delegate(object sender, FormClosingEventArgs e)
+        {
+            exiting = true;
+            if (child != null && !TryStop()) { exiting = false; e.Cancel = true; }
+        };
+        FormClosed += delegate
+        {
+            if (tray != null) tray.Dispose();
+            if (trayMenu != null) trayMenu.Dispose();
+        };
+        trayMenu = new ContextMenuStrip();
+        trayMenu.Items.Add("Quitter My Mirror", null, delegate { Close(); });
+        tray = new NotifyIcon { Icon = Icon, Text = "My Mirror", ContextMenuStrip = trayMenu, Visible = true };
         if (autoStart) Shown += delegate { TryStart(); };
     }
 
     void TryStart()
     {
         if (!ValidateName()) return;
+        bool prepared = false;
         try
         {
             string name = receiver.Text.Trim();
@@ -112,14 +131,15 @@ internal sealed class Mirror : Form
             if (File.Exists(MachineArgs)) throw new InvalidOperationException("Une configuration UxPlay est imposée dans ProgramData. Elle doit être gérée par l’administrateur.");
             foreach (var p in Process.GetProcessesByName("uxplay-windows"))
                 using (p) { if (!p.HasExited) throw new InvalidOperationException("Quitte UxPlay Windows depuis son icône près de l’horloge, puis réessaie."); }
+            Restore();
             using (var svc = new ServiceController("Bonjour Service"))
                 if (svc.Status != ServiceControllerStatus.Running) throw new InvalidOperationException("Le service Bonjour doit être démarré.");
             string code = MakeCode();
             Directory.CreateDirectory(Path.GetDirectoryName(ArgsFile));
-            previous = File.Exists(ArgsFile) ? File.ReadAllBytes(ArgsFile) : null;
-            string config = "-n " + name + " -nh -pin " + code + " -p " + Port + " -vs d3d11videosink -nofreeze";
-            WriteArguments(Utf8.GetBytes(config));
-            applied = config;
+            string config = "-n " + name + " -nh -pin " + code + " -p " + Port + " -vs d3d11videosink -fps 60 -nofreeze";
+            SaveRecovery(config);
+            prepared = true;
+            WriteFile(ArgsFile, Utf8.GetBytes(config));
             child = Process.Start(new ProcessStartInfo(Engine) { WorkingDirectory = Path.GetDirectoryName(Engine), UseShellExecute = false });
             started = DateTime.UtcNow;
             status.Text = "Démarrage du récepteur…";
@@ -132,7 +152,8 @@ internal sealed class Mirror : Form
         catch (Exception e)
         {
             string error = e.Message;
-            try { Restore(); } catch (Exception restoreError) { error += " " + restoreError.Message; }
+            if (prepared && child == null)
+                try { Restore(); } catch (Exception restoreError) { error += " " + restoreError.Message; }
             status.Text = error;
         }
     }
@@ -151,14 +172,14 @@ internal sealed class Mirror : Form
         AcceptButton = child == null ? action : (rename.Enabled ? rename : null);
     }
 
-    static void WriteArguments(byte[] bytes)
+    static void WriteFile(string path, byte[] bytes)
     {
-        string temporary = ArgsFile + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             File.WriteAllBytes(temporary, bytes);
-            if (File.Exists(ArgsFile)) File.Replace(temporary, ArgsFile, null);
-            else File.Move(temporary, ArgsFile);
+            if (File.Exists(path)) File.Replace(temporary, path, null);
+            else File.Move(temporary, path);
         }
         finally { File.Delete(temporary); }
     }
@@ -174,16 +195,37 @@ internal sealed class Mirror : Form
         }
     }
 
-    void Restore()
+    static void SaveRecovery(string config)
     {
-        if (applied == null) return;
-        if (File.Exists(ArgsFile) && File.ReadAllText(ArgsFile, Utf8) == applied)
+        byte[] previous = File.Exists(ArgsFile) ? File.ReadAllBytes(ArgsFile) : null;
+        using (var buffer = new MemoryStream())
+        using (var writer = new BinaryWriter(buffer, Utf8))
+        {
+            writer.Write(config);
+            writer.Write(previous != null);
+            if (previous != null) writer.Write(previous);
+            writer.Flush();
+            WriteFile(RecoveryFile, buffer.ToArray());
+        }
+    }
+
+    static void Restore()
+    {
+        if (!File.Exists(RecoveryFile)) return;
+        string config;
+        byte[] previous;
+        using (var buffer = new MemoryStream(File.ReadAllBytes(RecoveryFile)))
+        using (var reader = new BinaryReader(buffer, Utf8))
+        {
+            config = reader.ReadString();
+            previous = reader.ReadBoolean() ? reader.ReadBytes(checked((int)(buffer.Length - buffer.Position))) : null;
+        }
+        if (File.Exists(ArgsFile) && File.ReadAllText(ArgsFile, Utf8) == config)
         {
             if (previous == null) File.Delete(ArgsFile);
-            else WriteArguments(previous);
+            else WriteFile(ArgsFile, previous);
         }
-        applied = null;
-        previous = null;
+        File.Delete(RecoveryFile);
     }
 
     bool TryStop(bool fromStream = false)
@@ -258,10 +300,17 @@ internal sealed class Mirror : Form
             Text = "My Mirror · Vidéo",
             Icon = Icon,
             BackColor = Color.Black,
-            ClientSize = new Size(640, 640),
-            MinimumSize = new Size(320, 260),
+            FormBorderStyle = FormBorderStyle.FixedSingle,
+            MaximizeBox = false,
             StartPosition = FormStartPosition.CenterScreen
         };
+        Rectangle workArea = Screen.FromControl(this).WorkingArea;
+        NativeRect bounds;
+        Size source = GetClientRect(window, out bounds) && bounds.Right > 0 && bounds.Bottom > 0
+            ? new Size(bounds.Right, bounds.Bottom) : new Size(720, 1280);
+        form.ClientSize = FitVideo(source, new Size(Math.Max(1, workArea.Width - 32), Math.Max(1, workArea.Height - 80)));
+        form.StartPosition = FormStartPosition.Manual;
+        form.Location = new Point(workArea.Left + (workArea.Width - form.Width) / 2, workArea.Top + (workArea.Height - form.Height) / 2);
         DarkCaption(form);
         IntPtr host = form.Handle;
         int style = GetWindowLong(window, -16);
@@ -289,12 +338,31 @@ internal sealed class Mirror : Form
                 if (resumeAfterStream && name != null) receiver.Text = name;
             }
         };
-        form.FormClosed += delegate { stream = null; renderer = IntPtr.Zero; Show(); Activate(); if (resumeAfterStream) { resumeAfterStream = false; TryStart(); } };
+        form.FormClosed += delegate
+        {
+            stream = null;
+            renderer = IntPtr.Zero;
+            if (exiting) return;
+            Show();
+            Activate();
+            if (resumeAfterStream) { resumeAfterStream = false; TryStart(); }
+        };
         form.Show();
         SizeStream();
         ShowWindow(window, 5);
         Hide();
     }
+
+    static Size FitVideo(Size source, Size available)
+    {
+        double scale = Math.Min(1.0, Math.Min((double)available.Width / source.Width, (double)available.Height / source.Height));
+        return new Size(Math.Max(1, (int)Math.Round(source.Width * scale)), Math.Max(1, (int)Math.Round(source.Height * scale)));
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct NativeRect { public int Left, Top, Right, Bottom; }
+
+    [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr window, out NativeRect rectangle);
 
     void SizeStream()
     {
