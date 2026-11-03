@@ -1,6 +1,8 @@
 import re
+import os
 import secrets
 import shutil
+import signal
 import subprocess
 import tkinter as tk
 
@@ -54,8 +56,10 @@ class Mirror:
         self.stop()
         code = str(1000 + secrets.randbelow(9000))
         try:
-            self.process = subprocess.Popen([engine, "-n", name, "-nh", "-pin", code,
-                                             "-fps", "60", "-nofreeze"])
+            self.process = subprocess.Popen(
+                [engine, "-n", name, "-nh", "-pin", code, "-fps", "60", "-nofreeze"],
+                start_new_session=True,
+            )
         except OSError as error:
             self.status.config(text=str(error))
             return
@@ -70,16 +74,25 @@ class Mirror:
         self.root.after(500, self.poll)
 
     def stop(self):
+        self.stop_engine()
+        self.code.config(text="—")
+
+    def stop_engine(self):
         if self.process is not None and self.process.poll() is None:
-            self.process.terminate()
+            self.signal_engine(signal.SIGTERM)
             try:
                 self.process.wait(timeout=2)
             except subprocess.TimeoutExpired:
-                self.process.kill()
-                self.process.wait()
+                self.signal_engine(signal.SIGKILL)
+                self.process.wait(timeout=2)
         self.process = None
         self.active_name = None
-        self.code.config(text="—")
+
+    def signal_engine(self, signum):
+        try:
+            os.killpg(self.process.pid, signum)
+        except ProcessLookupError:
+            pass
 
     def close(self):
         self.stop()
@@ -88,5 +101,8 @@ class Mirror:
 
 if __name__ == "__main__":
     window = tk.Tk()
-    Mirror(window)
-    window.mainloop()
+    mirror = Mirror(window)
+    try:
+        window.mainloop()
+    finally:
+        mirror.stop_engine()

@@ -1,13 +1,16 @@
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.ServiceProcess;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.Win32.SafeHandles;
 
 internal sealed class Mirror : Form
 {
@@ -20,6 +23,7 @@ internal sealed class Mirror : Form
     const string ReceiverName = "My-Mirror";
     readonly TextBox pin = new TextBox { ReadOnly = true, AccessibleName = "Code AirPlay", Text = "—", Font = new Font("Segoe UI", 32, FontStyle.Bold), TextAlign = HorizontalAlignment.Center, Dock = DockStyle.Fill };
     readonly Label status = new Label { AutoSize = true, MaximumSize = new Size(420, 0), Text = "Récepteur arrêté." };
+    readonly CheckBox airPlayAudio = new CheckBox { Text = "&Son AirPlay", AutoSize = true, Checked = true };
     readonly Button retry = new Button { Text = "&Réessayer", AutoSize = true, Visible = false };
     readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer { Interval = 500 };
     NotifyIcon tray;
@@ -29,7 +33,10 @@ internal sealed class Mirror : Form
     bool closingStream;
     bool exiting;
     Process child;
-    DateTime started;
+    EngineJob job;
+    readonly Stopwatch startup = new Stopwatch();
+    bool ready;
+    IntPtr rejectedRenderer;
 
     [STAThread]
     static void Main(string[] args)
@@ -67,9 +74,9 @@ internal sealed class Mirror : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(420, 375);
+        ClientSize = new Size(420, 410);
         AutoScroll = true;
-        var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(24), ColumnCount = 1, RowCount = 7 };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(24), ColumnCount = 1, RowCount = 8 };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var header = new TableLayoutPanel { AutoSize = true, Dock = DockStyle.Top, ColumnCount = 2, RowCount = 2 };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -86,8 +93,10 @@ internal sealed class Mirror : Form
         layout.Controls.Add(new Label { Text = "&Code AirPlay", AutoSize = true, TabIndex = 3 });
         pin.TabIndex = 4;
         layout.Controls.Add(pin);
+        airPlayAudio.TabIndex = 5;
+        layout.Controls.Add(airPlayAudio);
         layout.Controls.Add(new Label { Text = "Sur l’iPhone, ouvre Recopie de l’écran puis choisis " + ReceiverName + ".", MaximumSize = new Size(350, 0), AutoSize = true, ForeColor = secondary });
-        retry.TabIndex = 5;
+        retry.TabIndex = 6;
         layout.Controls.Add(retry);
         layout.Controls.Add(new Label { Text = "Created by 7myo", AutoSize = true, ForeColor = secondary });
         for (int i = 0; i < layout.RowCount; i++) layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -96,6 +105,12 @@ internal sealed class Mirror : Form
         Controls.Add(layout);
         AcceptButton = retry;
         retry.Click += delegate { TryStart(); };
+        airPlayAudio.Click += delegate
+        {
+            if (child == null) return;
+            if (TryStop()) TryStart();
+            else airPlayAudio.Checked = !airPlayAudio.Checked;
+        };
         timer.Tick += delegate { Poll(); };
         FormClosing += delegate(object sender, FormClosingEventArgs e)
         {
@@ -105,6 +120,7 @@ internal sealed class Mirror : Form
         };
         FormClosed += delegate
         {
+            timer.Dispose();
             if (tray != null) tray.Dispose();
             if (trayMenu != null) trayMenu.Dispose();
         };
@@ -123,19 +139,28 @@ internal sealed class Mirror : Form
         {
             if (!File.Exists(Engine)) throw new FileNotFoundException("Installe UxPlay Windows x64 pour tous les utilisateurs, puis réessaie.");
             if (File.Exists(MachineArgs)) throw new InvalidOperationException("Une configuration UxPlay est imposée dans ProgramData. Elle doit être gérée par l’administrateur.");
-            foreach (var p in Process.GetProcessesByName("uxplay-windows"))
-                using (p) { if (!p.HasExited) throw new InvalidOperationException("UxPlay tourne déjà. Fais un clic droit sur son icône près de l’horloge, choisis Quitter, puis clique sur Réessayer."); }
+            var engines = Process.GetProcessesByName("uxplay-windows");
+            try
+            {
+                if (engines.Any(p => !p.HasExited))
+                    throw new InvalidOperationException("UxPlay tourne déjà. Fais un clic droit sur son icône près de l’horloge, choisis Quitter, puis clique sur Réessayer.");
+            }
+            finally { foreach (var engine in engines) engine.Dispose(); }
             Restore();
             using (var svc = new ServiceController("Bonjour Service"))
                 if (svc.Status != ServiceControllerStatus.Running) throw new InvalidOperationException("Le service Bonjour doit être démarré.");
             string code = MakeCode();
             Directory.CreateDirectory(Path.GetDirectoryName(ArgsFile));
-            string config = "-n " + ReceiverName + " -nh -pin " + code + " -p " + Port + " -vs d3d11videosink -fps 60 -nofreeze";
+            string config = EngineArguments(code, airPlayAudio.Checked);
             SaveRecovery(config);
             prepared = true;
             WriteFile(ArgsFile, Utf8.GetBytes(config));
+            job = new EngineJob();
             child = Process.Start(new ProcessStartInfo(Engine) { WorkingDirectory = Path.GetDirectoryName(Engine), UseShellExecute = false });
-            started = DateTime.UtcNow;
+            job.Attach(child);
+            startup.Restart();
+            ready = false;
+            rejectedRenderer = IntPtr.Zero;
             status.Text = "Démarrage du récepteur…";
             pin.Text = code;
             retry.Visible = false;
@@ -144,11 +169,25 @@ internal sealed class Mirror : Form
         catch (Exception e)
         {
             string error = e.Message;
-            if (prepared && child == null)
+            if (prepared)
+            {
+                if (child != null)
+                {
+                    if (TryStop()) status.Text = error;
+                    return;
+                }
+                ReleaseJob();
                 try { Restore(); } catch (Exception restoreError) { error += " " + restoreError.Message; }
+            }
             status.Text = error;
             retry.Visible = child == null;
         }
+    }
+
+    static string EngineArguments(string code, bool withAudio)
+    {
+        string options = "-n " + ReceiverName + " -nh -pin " + code + " -p " + Port + " -vs d3d11videosink -fps 60 -nofreeze";
+        return withAudio ? options : options + " -as 0";
     }
 
     static void WriteFile(string path, byte[] bytes)
@@ -199,7 +238,7 @@ internal sealed class Mirror : Form
             config = reader.ReadString();
             previous = reader.ReadBoolean() ? reader.ReadBytes(checked((int)(buffer.Length - buffer.Position))) : null;
         }
-        if (File.Exists(ArgsFile) && File.ReadAllText(ArgsFile, Utf8) == config)
+        if (File.Exists(ArgsFile) && File.ReadAllBytes(ArgsFile).SequenceEqual(Utf8.GetBytes(config)))
         {
             if (previous == null) File.Delete(ArgsFile);
             else WriteFile(ArgsFile, previous);
@@ -207,16 +246,22 @@ internal sealed class Mirror : Form
         File.Delete(RecoveryFile);
     }
 
-    bool TryStop(bool fromStream = false)
+    bool TryStop(bool fromStream = false, string message = "Récepteur arrêté.")
     {
         try
         {
             if (child != null && !child.HasExited)
             {
-                child.Kill();
+                bool attached = job != null && job.Attached;
+                ReleaseJob();
+                if (!attached)
+                {
+                    try { child.Kill(); }
+                    catch (InvalidOperationException) { if (!child.HasExited) throw; }
+                }
                 if (!child.WaitForExit(3000)) throw new InvalidOperationException("UxPlay ne s’est pas encore arrêté.");
             }
-            Finish("Récepteur arrêté.");
+            Finish(message);
             if (!fromStream) CloseStream();
             return true;
         }
@@ -225,13 +270,23 @@ internal sealed class Mirror : Form
 
     void Finish(string message)
     {
-        Restore();
         timer.Stop();
+        startup.Reset();
+        ReleaseJob();
         if (child != null) child.Dispose();
         child = null;
         retry.Visible = !exiting;
         pin.Text = "—";
+        try { Restore(); }
+        catch (Exception e) { message += " Restauration à réessayer au prochain démarrage : " + e.Message; }
         status.Text = message;
+    }
+
+    void ReleaseJob()
+    {
+        if (job == null) return;
+        job.Dispose();
+        job = null;
     }
 
     void Poll()
@@ -250,15 +305,25 @@ internal sealed class Mirror : Form
                 Close();
                 return;
             }
+            if (!ready && Listening(child.Id))
+            {
+                ready = true;
+                status.Text = "Prêt à se connecter";
+            }
+            else if (!ready && startup.Elapsed.TotalSeconds >= 15)
+            {
+                TryStop(false, "Aucun port AirPlay ne répond. Ferme les autres récepteurs et clique sur Réessayer.");
+                return;
+            }
             if (stream == null)
             {
                 IntPtr window = FindRenderer(child.Id);
-                if (window != IntPtr.Zero) OpenStream(window);
+                if (window != IntPtr.Zero && window != rejectedRenderer)
+                {
+                    try { OpenStream(window); }
+                    catch { rejectedRenderer = window; throw; }
+                }
             }
-            if (Listening(child.Id))
-                status.Text = "Prêt à se connecter";
-            else if ((DateTime.UtcNow - started).TotalSeconds > 10)
-                status.Text = "UxPlay tourne, mais aucun port AirPlay n’est à l’écoute. Vérifie l’icône UxPlay près de l’horloge.";
         }
         catch (Exception e) { status.Text = e.Message; }
     }
@@ -400,7 +465,8 @@ internal sealed class Mirror : Form
         try
         {
             if (GetExtendedTcpTable(table, ref size, false, 2, 3, 0) != 0) return false;
-            int count = System.Runtime.InteropServices.Marshal.ReadInt32(table);
+            int count = Marshal.ReadInt32(table);
+            if (count < 0 || count > (size - 4) / 24) return false;
             for (int i = 0; i < count; i++)
             {
                 int row = 4 + 24 * i;
@@ -411,5 +477,71 @@ internal sealed class Mirror : Form
             return false;
         }
         finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(table); }
+    }
+
+    sealed class EngineJob : IDisposable
+    {
+        const int ExtendedLimitInformation = 9;
+        const uint KillOnClose = 0x2000;
+        readonly SafeFileHandle handle;
+        public bool Attached { get; private set; }
+
+        public EngineJob()
+        {
+            handle = CreateJobObject(IntPtr.Zero, IntPtr.Zero);
+            if (handle.IsInvalid)
+            {
+                int error = Marshal.GetLastWin32Error();
+                handle.Dispose();
+                throw new Win32Exception(error);
+            }
+
+            var limits = new JobLimits();
+            limits.Basic.Flags = KillOnClose;
+            if (!SetInformationJobObject(handle, ExtendedLimitInformation, ref limits, Marshal.SizeOf(typeof(JobLimits))))
+            {
+                int error = Marshal.GetLastWin32Error();
+                handle.Dispose();
+                throw new Win32Exception(error);
+            }
+        }
+
+        public void Attach(Process process)
+        {
+            if (!AssignProcessToJobObject(handle, process.Handle))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            Attached = true;
+        }
+
+        public void Dispose() { handle.Dispose(); }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct BasicLimits
+        {
+            public long ProcessTime, JobTime;
+            public uint Flags;
+            public UIntPtr MinimumWorkingSet, MaximumWorkingSet;
+            public uint ActiveProcessLimit;
+            public UIntPtr Affinity;
+            public uint PriorityClass, SchedulingClass;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct JobLimits
+        {
+            public BasicLimits Basic;
+            public ulong ReadOperations, WriteOperations, OtherOperations;
+            public ulong ReadBytes, WriteBytes, OtherBytes;
+            public UIntPtr ProcessMemory, JobMemory, PeakProcessMemory, PeakJobMemory;
+        }
+
+        [DllImport("kernel32.dll", EntryPoint = "CreateJobObjectW", SetLastError = true)]
+        static extern SafeFileHandle CreateJobObject(IntPtr attributes, IntPtr name);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool SetInformationJobObject(SafeFileHandle job, int informationClass, ref JobLimits limits, int length);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool AssignProcessToJobObject(SafeFileHandle job, IntPtr process);
     }
 }
