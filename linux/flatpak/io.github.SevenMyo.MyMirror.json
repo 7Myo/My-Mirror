@@ -18,7 +18,7 @@
       "name": "tcl",
       "buildsystem": "simple",
       "build-commands": [
-        "cd unix && ./configure --prefix=/app --enable-threads && make -j${FLATPAK_BUILDER_N_JOBS} && make install"
+        "cd unix && ./configure --prefix=/app --enable-threads && make -j${FLATPAK_BUILDER_N_JOBS} && make install && chmod u+w /app/lib/libtcl8.6.so"
       ],
       "sources": [
         {
@@ -32,7 +32,7 @@
       "name": "tk",
       "buildsystem": "simple",
       "build-commands": [
-        "cd unix && ./configure --prefix=/app --with-tcl=/app/lib && make -j${FLATPAK_BUILDER_N_JOBS} && make install"
+        "cd unix && ./configure --prefix=/app --with-tcl=/app/lib && make -j${FLATPAK_BUILDER_N_JOBS} && make install && chmod u+w /app/lib/libtk8.6.so"
       ],
       "sources": [
         {
