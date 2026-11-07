@@ -130,7 +130,8 @@
         "install -Dm755 my-mirror /app/bin/my-mirror",
         "install -Dm644 io.github.SevenMyo.MyMirror.desktop /app/share/applications/io.github.SevenMyo.MyMirror.desktop",
         "install -Dm644 logo.svg /app/share/icons/hicolor/scalable/apps/io.github.SevenMyo.MyMirror.svg",
-        "install -Dm644 LICENSE /app/share/licenses/my-mirror/LICENSE"
+        "install -Dm644 LICENSE /app/share/licenses/my-mirror/LICENSE",
+        "install -Dm644 smoke_test.py /app/share/my-mirror/smoke_test.py"
       ],
       "sources": [
         {
@@ -152,6 +153,10 @@
         {
           "type": "file",
           "path": "../../LICENSE"
+        },
+        {
+          "path": "smoke_test.py",
+          "type": "file"
         }
       ]
     }
