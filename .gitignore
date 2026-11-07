@@ -1,2 +1,11 @@
 MyMirror.exe
 *.pdb
+work/
+outputs/
+linux/MyMirror-Linux-*
+linux/__pycache__/
+result
+linux/flatpak/build-dir/
+linux/flatpak/repo/
+linux/flatpak/.flatpak-builder/
+linux/flatpak/*.flatpak

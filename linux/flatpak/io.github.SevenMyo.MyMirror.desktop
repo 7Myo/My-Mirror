@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=My Mirror
+Comment=Afficher un iPhone via AirPlay
+Exec=my-mirror
+Icon=io.github.SevenMyo.MyMirror
+Terminal=false
+Categories=AudioVideo;Network;

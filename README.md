@@ -18,9 +18,9 @@ Au lancement, My Mirror vérifie les versions sur GitHub. Si une version stable 
 
 Au clavier, utilise **Alt+C** pour accéder au code et le copier. My Mirror reprend les couleurs Windows quand un thème de contraste est actif au démarrage.
 
-## Linux (aperçu)
+## Linux
 
-Installe UxPlay et Tkinter avec le gestionnaire de paquets de ta distribution, puis lance `python3 linux/my_mirror.py` depuis le dépôt. Le lanceur affiche le nom et le code. Sous Linux, UxPlay ouvre sa propre fenêtre vidéo et l’accueil reste ouvert. Cette version est à valider sur un bureau Linux.
+La version Linux en préparation cible Ubuntu, Debian, Arch et NixOS avec un paquet Flatpak commun. Un exécutable direct et une définition Nix sont également préparés. Consulte le [guide Linux](linux/README.md) pour les dépendances et les limites de validation.
 
 ## Compilation
 

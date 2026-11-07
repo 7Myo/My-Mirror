@@ -1,0 +1,159 @@
+{
+  "app-id": "io.github.SevenMyo.MyMirror",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "49",
+  "sdk": "org.gnome.Sdk",
+  "command": "my-mirror",
+  "finish-args": [
+    "--share=network",
+    "--share=ipc",
+    "--socket=x11",
+    "--socket=wayland",
+    "--socket=pulseaudio",
+    "--device=dri",
+    "--system-talk-name=org.freedesktop.Avahi"
+  ],
+  "modules": [
+    {
+      "name": "tcl",
+      "buildsystem": "simple",
+      "build-commands": [
+        "cd unix && ./configure --prefix=/app --enable-threads && make -j${FLATPAK_BUILDER_N_JOBS} && make install"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/tcltk/tcl.git",
+          "commit": "874e4fe4264a40c00c4db5115afba9600f9f368d"
+        }
+      ]
+    },
+    {
+      "name": "tk",
+      "buildsystem": "simple",
+      "build-commands": [
+        "cd unix && ./configure --prefix=/app --with-tcl=/app/lib && make -j${FLATPAK_BUILDER_N_JOBS} && make install"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/tcltk/tk.git",
+          "commit": "9ce7ed45cf35f91e8d77a0d295069f4e9af297f4"
+        }
+      ]
+    },
+    {
+      "name": "python",
+      "buildsystem": "simple",
+      "build-commands": [
+        "./configure --prefix=/app --enable-shared --with-ensurepip=no --disable-test-modules",
+        "make -j${FLATPAK_BUILDER_N_JOBS}",
+        "make install"
+      ],
+      "build-options": {
+        "env": {
+          "TCLTK_CFLAGS": "-I/app/include",
+          "TCLTK_LIBS": "-L/app/lib -ltk8.6 -ltcl8.6",
+          "LD_LIBRARY_PATH": "/app/lib"
+        }
+      },
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/python/cpython.git",
+          "commit": "2c2462afc5d978d31f3d073001fc202d269917ff"
+        }
+      ]
+    },
+    {
+      "name": "avahi",
+      "buildsystem": "autotools",
+      "config-opts": [
+        "--disable-daemon",
+        "--enable-compat-libdns_sd",
+        "--disable-libdaemon",
+        "--disable-qt3",
+        "--disable-qt4",
+        "--disable-qt5",
+        "--disable-gtk",
+        "--disable-gtk3",
+        "--disable-python",
+        "--disable-mono",
+        "--disable-autoipd",
+        "--disable-manpages",
+        "--disable-tests",
+        "--with-distro=none"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/avahi/avahi.git",
+          "commit": "f060abee2807c943821d88839c013ce15db17b58"
+        }
+      ]
+    },
+    {
+      "name": "libplist",
+      "buildsystem": "autotools",
+      "config-opts": [
+        "--without-cython",
+        "--disable-static"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/libimobiledevice/libplist.git",
+          "commit": "cf5897a71ea412ea2aeb1e2f6b5ea74d4fabfd8c"
+        }
+      ]
+    },
+    {
+      "name": "uxplay",
+      "buildsystem": "cmake-ninja",
+      "config-opts": [
+        "-DNO_MARCH_NATIVE=ON",
+        "-DCMAKE_BUILD_TYPE=Release"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/FDH2/UxPlay.git",
+          "commit": "df67c212a433cf6dda3676dd40c097900d24e645"
+        }
+      ]
+    },
+    {
+      "name": "my-mirror",
+      "buildsystem": "simple",
+      "build-commands": [
+        "install -Dm644 my_mirror.py /app/share/my-mirror/my_mirror.py",
+        "install -Dm755 my-mirror /app/bin/my-mirror",
+        "install -Dm644 io.github.SevenMyo.MyMirror.desktop /app/share/applications/io.github.SevenMyo.MyMirror.desktop",
+        "install -Dm644 logo.svg /app/share/icons/hicolor/scalable/apps/io.github.SevenMyo.MyMirror.svg",
+        "install -Dm644 LICENSE /app/share/licenses/my-mirror/LICENSE"
+      ],
+      "sources": [
+        {
+          "type": "file",
+          "path": "../my_mirror.py"
+        },
+        {
+          "type": "file",
+          "path": "my-mirror"
+        },
+        {
+          "type": "file",
+          "path": "io.github.SevenMyo.MyMirror.desktop"
+        },
+        {
+          "type": "file",
+          "path": "../../logo.svg"
+        },
+        {
+          "type": "file",
+          "path": "../../LICENSE"
+        }
+      ]
+    }
+  ]
+}
