@@ -84,7 +84,8 @@
         "--disable-autoipd",
         "--disable-manpages",
         "--disable-tests",
-        "--with-distro=none"
+        "--with-distro=none",
+        "--disable-introspection"
       ],
       "sources": [
         {
