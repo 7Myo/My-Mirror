@@ -20,7 +20,77 @@ Au clavier, utilise **Alt+C** pour accéder au code et le copier. My Mirror repr
 
 ## Linux
 
-La version Linux en préparation cible Ubuntu, Debian, Arch et NixOS avec un paquet Flatpak commun. Un exécutable direct et une définition Nix sont également préparés. Consulte le [guide Linux](linux/README.md) pour les dépendances et les limites de validation.
+My Mirror pour Linux utilise le même paquet **Flatpak** sur Ubuntu, Debian, Arch et NixOS. La fenêtre blanche reprend le logo, le nom **My-Mirror**, le grand code AirPlay et la case **Son AirPlay** cochée par défaut.
+
+### 1. Préparer Flatpak et la découverte réseau
+
+Sur Ubuntu ou Debian :
+
+```sh
+sudo apt update
+sudo apt install flatpak avahi-daemon
+sudo systemctl enable --now avahi-daemon
+```
+
+Sur Arch :
+
+```sh
+sudo pacman -Syu flatpak avahi
+sudo systemctl enable --now avahi-daemon
+```
+
+Sur NixOS, ajoute ces réglages à ta configuration système, puis applique-la :
+
+```nix
+services.flatpak.enable = true;
+services.avahi = {
+  enable = true;
+  publish.enable = true;
+  publish.userServices = true;
+  openFirewall = true;
+};
+networking.firewall.allowedTCPPorts = [ 7010 7011 7012 ];
+networking.firewall.allowedUDPPorts = [ 7010 7011 7012 ];
+```
+
+```sh
+sudo nixos-rebuild switch
+```
+
+Si ton pare-feu bloque les connexions locales, autorise mDNS sur UDP 5353 et AirPlay sur TCP/UDP 7010 à 7012 pour ton réseau local. Le téléphone et le PC doivent être sur le même réseau, avec la communication entre appareils autorisée.
+
+### 2. Installer My Mirror
+
+Ajoute le dépôt des composants Flatpak une seule fois :
+
+```sh
+flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+```
+
+Télécharge `MyMirror-Linux-x86_64.flatpak` depuis les releases quand le paquet validé sera disponible. Dans le dossier du téléchargement :
+
+```sh
+flatpak install --user ./MyMirror-Linux-x86_64.flatpak
+flatpak run io.github.SevenMyo.MyMirror
+```
+
+Le paquet inclut l’interface Python/Tkinter, UxPlay et ses bibliothèques. Flatpak installe le runtime nécessaire. Le service Avahi et les règles de pare-feu restent des réglages du système hôte.
+
+### 3. Partager l’écran de l’iPhone
+
+Ouvre My Mirror depuis le menu des applications ou avec la commande ci-dessus. Laisse **Son AirPlay** coché pour recevoir le son, puis choisis **My-Mirror** dans **Centre de contrôle → Recopie de l’écran** sur l’iPhone. Saisis le code affiché si l’iPhone le demande.
+
+Sur Linux, UxPlay ouvre sa propre fenêtre vidéo et l’accueil reste ouvert. Fermer l’accueil coupe la réception et ferme le moteur. Cette première version Linux doit encore être validée avec un iPhone sur les distributions ciblées.
+
+### Mettre à jour ou désinstaller
+
+Pour une nouvelle release téléchargée, exécute `flatpak install --user ./MyMirror-Linux-x86_64.flatpak` à nouveau. La mise à jour automatique intégrée au lanceur Windows est spécifique à Windows.
+
+```sh
+flatpak uninstall --user io.github.SevenMyo.MyMirror
+```
+
+Les instructions de compilation, l’exécutable direct et la définition Nix sont dans le [guide technique Linux](linux/README.md).
 
 ## Compilation
 
