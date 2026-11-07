@@ -67,7 +67,7 @@ Ajoute le dépôt des composants Flatpak une seule fois :
 flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 ```
 
-Télécharge `MyMirror-Linux-x86_64.flatpak` depuis les releases quand le paquet validé sera disponible. Dans le dossier du téléchargement :
+Télécharge [MyMirror-Linux-x86_64.flatpak](https://github.com/7Myo/My-Mirror/releases/download/linux-v1.4.0/MyMirror-Linux-x86_64.flatpak). Dans le dossier du téléchargement :
 
 ```sh
 flatpak install --user ./MyMirror-Linux-x86_64.flatpak
@@ -80,7 +80,7 @@ Le paquet inclut l’interface Python/Tkinter, UxPlay et ses bibliothèques. Fla
 
 Ouvre My Mirror depuis le menu des applications ou avec la commande ci-dessus. Laisse **Son AirPlay** coché pour recevoir le son, puis choisis **My-Mirror** dans **Centre de contrôle → Recopie de l’écran** sur l’iPhone. Saisis le code affiché si l’iPhone le demande.
 
-Sur Linux, UxPlay ouvre sa propre fenêtre vidéo et l’accueil reste ouvert. Fermer l’accueil coupe la réception et ferme le moteur. Cette première version Linux doit encore être validée avec un iPhone sur les distributions ciblées.
+Sur Linux, UxPlay ouvre sa propre fenêtre vidéo et l’accueil reste ouvert. Fermer l’accueil coupe la réception et ferme le moteur. L’installation Flatpak, l’ouverture de l’interface, le démarrage du récepteur et le choix du son ont été testés automatiquement sur Ubuntu. Cette première version Linux est une préversion : la réception vidéo depuis un iPhone et les essais sur Debian, Arch et NixOS restent à faire.
 
 ### Mettre à jour ou désinstaller
 

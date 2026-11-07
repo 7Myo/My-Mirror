@@ -1,6 +1,6 @@
 # My Mirror pour Linux
 
-Le format de distribution principal prévu est **Flatpak**, commun à Ubuntu, Debian, Arch et NixOS. L’interface est blanche, le nom est fixé à **My-Mirror** et le son est activé par défaut.
+Le format de distribution principal est **Flatpak**, commun à Ubuntu, Debian, Arch et NixOS. L’interface est blanche, le nom est fixé à **My-Mirror** et le son est activé par défaut. Le tutoriel utilisateur complet est dans le [README principal](../README.md#linux).
 
 ## Flatpak
 
@@ -13,7 +13,7 @@ flatpak run io.github.SevenMyo.MyMirror
 
 Le manifeste inclut Python, Tcl/Tk, UxPlay et les bibliothèques de découverte. L’application utilise le réseau local, le serveur graphique, la sortie audio et l’accélération graphique. Le service Avahi du système hôte doit fonctionner et le pare-feu doit laisser passer mDNS (UDP 5353) et AirPlay (TCP/UDP 7010 à 7012).
 
-Pour construire le paquet, utilise un poste Linux x86_64 avec Flatpak Builder et le dépôt Flathub configuré, puis exécute `sh linux/flatpak/build.sh`. La compilation du paquet Flatpak est encore à valider sur Linux.
+Pour construire le paquet, utilise un poste Linux x86_64 avec Flatpak Builder et le dépôt Flathub configuré, puis exécute `sh linux/flatpak/build.sh`. La construction et l’installation du paquet ont été validées sur Ubuntu dans GitHub Actions.
 
 ## Exécutable direct (option secondaire)
 
@@ -76,6 +76,6 @@ Sous Windows, utilise `linux/build.ps1` avec Go disponible dans le PATH. Le fich
 
 ## État de validation
 
-Le fichier ELF a été construit depuis Windows. Le démarrage graphique, la recopie depuis un iPhone, les installations apt/AUR et la construction Nix restent à vérifier sur les distributions ciblées.
+Le paquet Flatpak a été construit et installé sur un serveur Ubuntu. L’ouverture graphique, le démarrage d’UxPlay et le choix des arguments audio ont passé les tests. La recopie depuis un iPhone, les essais sur Debian/Arch/NixOS et la construction Nix restent à vérifier. L’exécutable ELF direct est une alternative construite depuis Windows, avec des dépendances système.
 
 UxPlay ouvre sa propre fenêtre vidéo. L’accueil reste ouvert pour le code et le choix du son. Fermer l’accueil coupe la réception et ferme le moteur. La mise à jour automatique de la version Windows est propre à Windows à ce stade.
