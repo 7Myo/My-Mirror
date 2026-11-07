@@ -18,7 +18,9 @@
       "name": "tcl",
       "buildsystem": "simple",
       "build-commands": [
-        "cd unix && ./configure --prefix=/app --enable-threads && make -j${FLATPAK_BUILDER_N_JOBS} && make install && chmod u+w /app/lib/libtcl8.6.so"
+        "cd unix && ./configure --prefix=/app --enable-threads && make -j${FLATPAK_BUILDER_N_JOBS} && make install && chmod u+w /app/lib/libtcl8.6.so",
+        "mkdir -p /app/share/tcl-build && cp -r generic unix doc /app/share/tcl-build/",
+        "sed -i 's|/run/build/tcl|/app/share/tcl-build|g' /app/lib/tclConfig.sh"
       ],
       "sources": [
         {
